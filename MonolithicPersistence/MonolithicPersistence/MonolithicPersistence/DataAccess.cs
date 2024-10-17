@@ -1,22 +1,17 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+﻿using Microsoft.Data.SqlClient;
+using MonolithicPersistence.Models;
 
-using System;
-using System.Data.SqlClient;
-using System.Threading.Tasks;
-using MonolithicPersistence.WebRole.Models;
-
-namespace MonolithicPersistence.WebRole
+namespace MonolithicPersistence
 {
-    public static class DataAccess
+    public class DataAccess : IDataAccess
     {
-        public static async Task InsertPurchaseOrderHeaderAsync(string cnStr)
+        public async Task InsertPurchaseOrderHeaderAsync(string cnStr)
         {
             const string queryString =
-                "INSERT INTO Purchasing.PurchaseOrderHeader " +
-                "(RevisionNumber, Status, EmployeeID, VendorID, ShipMethodID, OrderDate, ShipDate, SubTotal, TaxAmt, Freight, ModifiedDate) " +
+                "INSERT INTO SalesLT.SalesOrderHeader " +
+                "(RevisionNumber, Status, OrderDate, ShipDate, SubTotal, TaxAmt, Freight, ModifiedDate, DueDate, CustomerId, ShipMethod) " +
                 "VALUES " +
-                "(@RevisionNumber, @Status, @EmployeeID, @VendorID, @ShipMethodID, @OrderDate, @ShipDate, @SubTotal, @TaxAmt, @Freight, @ModifiedDate)";
+                "(@RevisionNumber, @Status, @OrderDate, @ShipDate, @SubTotal, @TaxAmt, @Freight, @ModifiedDate, @DueDate, @CustomerId, @ShipMethod)";
 
             var dt = DateTime.UtcNow;
 
@@ -26,24 +21,24 @@ namespace MonolithicPersistence.WebRole
                 {
                     cmd.Parameters.AddWithValue("@RevisionNumber", 1);
                     cmd.Parameters.AddWithValue("@Status", 4);
-                    cmd.Parameters.AddWithValue("@EmployeeID", 258);
-                    cmd.Parameters.AddWithValue("@VendorID", 1580);
-                    cmd.Parameters.AddWithValue("@ShipMethodID", 3);
                     cmd.Parameters.AddWithValue("@OrderDate", dt);
                     cmd.Parameters.AddWithValue("@ShipDate", dt);
                     cmd.Parameters.AddWithValue("@SubTotal", 123.40M);
                     cmd.Parameters.AddWithValue("@TaxAmt", 12.34M);
                     cmd.Parameters.AddWithValue("@Freight", 5.76M);
                     cmd.Parameters.AddWithValue("@ModifiedDate", dt);
+                    cmd.Parameters.AddWithValue("@DueDate", dt);
+                    cmd.Parameters.AddWithValue("@CustomerId", 29847);
+                    cmd.Parameters.AddWithValue("@ShipMethod", "CARGO TRANSPORT 10");
 
                     await cn.OpenAsync().ConfigureAwait(false);
                     await cmd.ExecuteNonQueryAsync().ConfigureAwait(false);
                 }
             }
         }
-        public static async Task LogAsync(string cnStr, string logTableName)
+        public async Task LogAsync(string cnStr, string logTableName)
         {
-            string queryString = "INSERT INTO dbo." + logTableName + " (LogId, Message, LogTime) VALUES (@LogId, @Message, @LogTime)";
+            string queryString = "INSERT INTO dbo." + logTableName + " (ErrorMessage, ErrorTime, UserName, ErrorNumber) VALUES (@Message, @LogTime, @UserName, @ErrorNumber)";
 
             var logMessage = new LogMessage();
 
@@ -51,9 +46,10 @@ namespace MonolithicPersistence.WebRole
             {
                 using (var cmd = new SqlCommand(queryString, cn))
                 {
-                    cmd.Parameters.AddWithValue("@LogId", logMessage.LogId);
                     cmd.Parameters.AddWithValue("@Message", logMessage.Message);
                     cmd.Parameters.AddWithValue("@LogTime", logMessage.LogTime);
+                    cmd.Parameters.AddWithValue("@UserName", "mspnp");
+                    cmd.Parameters.AddWithValue("@ErrorNumber", logMessage.ErrorNumber);
 
                     await cn.OpenAsync().ConfigureAwait(false);
                     await cmd.ExecuteNonQueryAsync().ConfigureAwait(false);

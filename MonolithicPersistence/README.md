@@ -1,80 +1,145 @@
 # MonolithicPersistence Sample Code
 
+It is a sample implementation to ilustrate [Monolithic Persistence antipattern](https://learn.microsoft.com/azure/architecture/antipatterns/monolithic-persistence/)
+
 The MonolithicPersistence sample code comprises the following items:
 
-* MonolithicPersistence solution file
+- MonolithicPersistence Application
 
-* AzureCloudService
+- Azure SQL database with [AdventureWorksLT sample](https://learn.microsoft.com/sql/samples/adventureworks-install-configure?view=sql-server-ver16&tabs=ssms#deploy-to-azure-sql-database)
 
-* MonolithicPersistence.WebRole WebAPI project
+The MonolithicPersistence Web Api project contains two controllers:
 
-* [Detailed Documentation][docs]
+- `MonoController`
 
-The MonolithicPersistence.WebRole project contains two controllers:
+- `PolyController`
 
-* `MonoController`
-
-* `PolyController`
-
-The `Post` action of both controllers add a new `PurchaseOrderHeader` record to the
-[AdventureWorks2012][AdventureWorks2012] database deployed in the cloud, and then
-create a log record that describes the operation just performed. The following snippet
-shows the code for the `MonoController`. The `PolyController` is very similar, except
-that the log record is written to a different database:
+The `Post` action of both controllers add a new `PurchaseOrderHeader` record to the AdventureWorksLT database deployed in the cloud, and then create a log record that describes the operation just performed. The following snippet shows the code for the `MonoController`. The `PolyController` is very similar, except that the log record is written to a different database:
 
 **C#**
-``` C#
-public class MonoController : ApiController
-{
-    private static readonly string ProductionDb = CloudConfigurationManager.GetSetting("ProductionSqlDbCnStr");
-    public const string LogTableName = "MonoLog";
 
-    public async Task<IHttpActionResult> PostAsync()
-    {
-        await DataAccess.InsertPurchaseOrderHeaderAsync(ProductionDb);
+```C#
+ [ApiController]
+ [Route("[controller]")]
+ public class MonoController(IConfiguration configuration, IDataAccess dataAccess) : ControllerBase
+ {
+     [HttpPost()]
+     public async Task<IActionResult> PostAsync()
+     {
+         var connectionStr = configuration["AdventureWorksProductDB"];
+         await dataAccess.InsertPurchaseOrderHeaderAsync(connectionStr);
 
-        await DataAccess.LogAsync(ProductionDb, LogTableName);
+         await dataAccess.LogAsync(connectionStr, "ErrorLog");
 
-        return Ok();
-    }
-}
+         return Ok();
+     }
+ }
 ```
 
-## Configuring the project
+```C#
+ [ApiController]
+ [Route("[controller]")]
+ public class PolyController(IConfiguration configuration, IDataAccess dataAccess) : ControllerBase
+ {
+     [HttpPost()]
+     public async Task<IActionResult> PostAsync()
+     {
+         var connectionStr = configuration["AdventureWorksProductDB"];
+         var logConnectionStr = configuration["AdventureWorksLogProductDB"];
+         await dataAccess.InsertPurchaseOrderHeaderAsync(connectionStr);
 
-Both controllers use the [AdventureWorks2012][AdventureWorks2012] database stored by
-using Azure SQL Database. Create the database by using the Azure Management Portal and
-add the connection string to the `ProductionSqlDbCnStr` setting in the Service
-Configuration files in the AzureCloudService project.
+         await dataAccess.LogAsync(logConnectionStr, "ErrorLog");
 
-The `PolyController` also requires a separate Azure SQL Database to hold the log
-table. Create a new database on another SQL server by using the Azure Management
-Portal and add the connection string to the `LogSqlDbCnStr` setting in the
-Service Configuration files in the AzureCloudService project.
+         return Ok();
+     }
+ }
+```
 
-Note that the new Azure portal provides a simplified version of the database (AdventureWorksLT). The AdventureWorksLT database uses a different schema from that expected by this sample application which might not function correctly unless the full [AdventureWorks2012][AdventureWorks2012] database is installed.
+## :rocket: Deployment guide
 
-The tables used to hold log records are created automatically when the service starts running.
+Install the prerequisites and follow the steps to deploy and run the examples.
 
-## Deploying the project to Azure
+### Prerequisites
 
-In Visual Studio Solution Explorer, right-click the AzureCloudService project and then click *Publish* to deploy the project to Azure.
+- Permission to create a new resource group and resources in an [Azure subscription](https://azure.com/free)
+- Unix-like shell. Also available in:
+  - [Azure Cloud Shell](https://shell.azure.com/)
+  - [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/windows/wsl/install)
+- [Git](https://git-scm.com/downloads)
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
+- Optionally, an IDE, like [Visual Studio](https://visualstudio.microsoft.com/downloads/) or [Visual Studio Code](https://code.visualstudio.com/).
 
-## Load testing the project
+### Steps
 
-You can use [Visual Studio Online to load test](http://www.visualstudio.com/en-us/get-started/load-test-your-app-vs.aspx) the application.
-For details of the load testing strategy for this sample, see [Load Testing][Load Testing].
+1. Clone this repository to your workstation and navigate to the working directory.
 
-## Dependencies
+   ```bash
+   git clone https://github.com/mspnp/performance-optimization
+   cd MonolithicPersistence
+   ```
 
-This project requires:
+1. Log into Azure and create an empty resource group.
 
-* Azure SDK 2.5
+   ```bash
+   az login
+   az account set -s <Name or ID of subscription>
 
-* An instance of the [AdventureWorks2012] database
+   export USER=<Microsoft Entra Id user to connect the database>
+   export USER_OBJECTID=<Microsoft Entra Id user's object id>
+   export USER_TENANTID=<User's Tenant>
 
-* An empty Azure SQL Database instance running on a different SQL server
+   LOCATION=eastus
+   RESOURCEGROUP=-monolithic-persistence-${LOCATION}
 
-[docs]: docs/MonolithicPersistence.md
-[AdventureWorks2012]: https://msftdbprodsamples.codeplex.com/releases/view/37304
-[Load Testing]: docs/LoadTesting.md
+   az group create --name ${RESOURCEGROUP} --location ${LOCATION}
+
+   ```
+
+1. Deploy the supporting Azure resources.  
+   It will create two databases that only allows Microsoft Entra ID users, including the AdventureWorksLT sample
+
+   ```bash
+   az deployment group create --resource-group ${RESOURCEGROUP}  \
+                        -f ./bicep/main.bicep  \
+                        -p user=${USER} \
+                        userObjectId=${USER_OBJECTID} \
+                        userTenantId=${USER_TENANTID}
+   ```
+
+1. Configure database connection string
+
+   On appsettings.json you need to complete with your server and database name.
+
+   ```bash
+   "Server=tcp:<yourServer>.database.windows.net,1433;Database=<yourDatabase>;Authentication=ActiveDirectoryDefault; Encrypt=True;TrustServerCertificate=false;Connection Timeout=30;",
+   ```
+
+1. Authenticate with a Microsoft Entra identity
+
+   It uses [Active Directory Default](https://learn.microsoft.com/sql/connect/ado-net/sql/azure-active-directory-authentication?view=sql-server-ver16#setting-microsoft-entra-authentication) which requires authentication via AZ CLI or Visual Studio.
+
+1. Enable your computer to reach the Azure Database:
+
+   - Go to the Database Server.
+   - In the Network section, allow your IP address.
+
+1. Run proyect locally
+
+   Execute the API and then you will be able to call both endpoints
+
+## :broom: Clean up resources
+
+Most of the Azure resources deployed in the prior steps will incur ongoing charges unless removed.
+
+```bash
+az group delete -n ${RESOURCEGROUP} -y
+```
+
+## Contributions
+
+Please see our [Contributor guide](./CONTRIBUTING.md).
+
+This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact <opencode@microsoft.com> with any additional questions or comments.
+
+With :heart: from Azure Patterns & Practices, [Azure Architecture Center](https://azure.com/architecture).
