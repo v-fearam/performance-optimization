@@ -90,7 +90,7 @@ Install the prerequisites and follow the steps to deploy and run the examples.
    export USER_TENANTID=<User's Tenant>
 
    LOCATION=eastus
-   RESOURCEGROUP=-monolithic-persistence-${LOCATION}
+   RESOURCEGROUP=rg-monolithic-persistence-${LOCATION}
 
    az group create --name ${RESOURCEGROUP} --location ${LOCATION}
 
