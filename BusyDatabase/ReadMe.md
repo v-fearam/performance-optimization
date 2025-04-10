@@ -51,10 +51,7 @@ Install the prerequisites and follow the steps to deploy and run the examples.
    export USER_OBJECTID=<Microsoft Entra Id user's object id>
    export USER_TENANTID=<User's Tenant>
 
-   LOCATION=eastus
-   RESOURCEGROUP=rg-busy-database-${LOCATION}
-
-   az group create --name ${RESOURCEGROUP} --location ${LOCATION}
+   az group create --name rg-busy-database-eastus --location eastus
 
    ```
 
@@ -62,7 +59,7 @@ Install the prerequisites and follow the steps to deploy and run the examples.
    It will create a database that only allows Microsoft Entra ID users, including the AdventureWorksLT sample
 
    ```bash
-   az deployment group create --resource-group ${RESOURCEGROUP}  \
+   az deployment group create --resource-group rg-busy-database-eastus  \
                         -f ./bicep/main.bicep  \
                         -p user=${USER} \
                         userObjectId=${USER_OBJECTID} \
@@ -95,7 +92,7 @@ Install the prerequisites and follow the steps to deploy and run the examples.
 Most of the Azure resources deployed in the prior steps will incur ongoing charges unless removed.
 
 ```bash
-az group delete -n ${RESOURCEGROUP} -y
+az group delete -n rg-busy-database-eastus -y
 ```
 
 ## Contributions
