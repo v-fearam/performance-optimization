@@ -81,7 +81,7 @@ Install the prerequisites and follow the steps to deploy and run the examples.
 1. Enable your computer to reach the Azure Database:
 
    - Go to the Database Server.
-   - In the Network section, allow your IP address.
+   - In the Security/Networking section, allow your IP address.
 
 1. Run proyect locally
 
