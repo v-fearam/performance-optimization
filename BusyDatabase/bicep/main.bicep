@@ -1,3 +1,7 @@
+targetScope = 'resourceGroup'
+
+/*** PARAMETERS ***/
+
 @description('Location for all resources.')
 param location string = resourceGroup().location
 
@@ -17,15 +21,21 @@ param userObjectId string
 @description('The tenant id of the previous user')
 param userTenantId string
 
-// --- Variables
+/*** VARIABLES ***/
+
 var uniqueName = uniqueString(resourceGroup().id)
 
 @description('The name of the SQL logical server.')
-var serverName = 'sqlserver-${uniqueName}'
-@description('The name of the SQL Database.')
-var sqlDBName = 'busyDatabase-${uniqueName}'
-var logAnalyticsWorkspaceName = 'busyDatabase-${uniqueName}'
+var serverName = 'sql-server-${uniqueName}-${location}-01'
 
+@description('The name of the SQL Database.')
+var sqlDBName = 'sqldb-busydatabase-${uniqueName}-${location}-01'
+
+@description('Where applicable, each resource is configured to send diagnostics to an Azure Log Analytics instance.')
+var logAnalyticsWorkspaceName = 'log-busydatabase-${uniqueName}-${location}-01'
+
+
+/*** RESOURCES ***/
 
 resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
   name: serverName
@@ -75,7 +85,7 @@ resource diagnosticSettingsSqlServer 'Microsoft.Insights/diagnosticSettings@2021
   }
 }
 
-resource auditingServerSettings 'Microsoft.Sql/servers/auditingSettings@2021-11-01-preview' = {
+resource auditingSqlServerSettings 'Microsoft.Sql/servers/auditingSettings@2021-11-01-preview' = {
   parent: sqlServer
   name: 'default'
   properties: {
@@ -86,36 +96,6 @@ resource auditingServerSettings 'Microsoft.Sql/servers/auditingSettings@2021-11-
       'FAILED_DATABASE_AUTHENTICATION_GROUP'
       'BATCH_COMPLETED_GROUP'
     ]
-  }
-}
-
-resource sqlVulnerabilityAssessment 'Microsoft.Sql/servers/sqlVulnerabilityAssessments@2022-11-01-preview' = {
-  name: 'default'
-  parent: sqlServer
-  properties: {
-    state: 'Enabled'
-  }
-  dependsOn: [
-    auditingServerSettings
-  ]
-}
-
-resource solutions_SQLAuditing_githubmetrics 'Microsoft.OperationsManagement/solutions@2015-11-01-preview' = {
-  name: 'SolutionSQLAuditing${logAnalyticsWorkspace.name}'
-  location: location
-  plan: {
-    name: 'SQLAuditing${sqlDB.name}'
-    promotionCode: ''
-    product: 'SQLAuditing'
-    publisher: 'Microsoft'
-  }
-  properties: {
-    workspaceResourceId: logAnalyticsWorkspace.id
-    containedResources: [
-      '${resourceId('Microsoft.OperationalInsights/workspaces', logAnalyticsWorkspace.name)}/views/SQLSecurityInsights'
-      '${resourceId('Microsoft.OperationalInsights/workspaces', logAnalyticsWorkspace.name)}/views/SQLAccessToSensitiveData'
-    ]
-    referencedResources: []
   }
 }
 
@@ -138,12 +118,11 @@ resource sqlDB 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
   dependsOn: [
     sqlServer::sqlADOnlyAuth
     sqlServer::activeDirectoryAdmin
-    auditingServerSettings
-    sqlVulnerabilityAssessment
+    auditingSqlServerSettings
   ]
 }
 
-resource auditingDbSettings 'Microsoft.Sql/servers/databases/auditingSettings@2023-08-01-preview' = {
+resource auditingSqlDbSettings 'Microsoft.Sql/servers/databases/auditingSettings@2023-08-01-preview' = {
   parent: sqlDB
   name: 'default'
   properties: {
@@ -164,10 +143,7 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2021-06
   name: logAnalyticsWorkspaceName
   location: location
   properties: {
-    sku: {
-      name: 'PerGB2018' // Example SKU, adjust as needed
-    }
-    retentionInDays: 30 // Adjust retention period as needed
+    retentionInDays: 30
   }
 }
 
